@@ -2,23 +2,25 @@ package uk.co.sam_giles.finagled_batch;
 
 import com.twitter.finagle.{Http, Service}
 import com.twitter.util.{Await, Future}
-
 import java.net.{InetSocketAddress, URL}
-
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.{ChannelBufferInputStream, ChannelBufferOutputStream, ChannelBuffer, ChannelBuffers}
-
 import com.fasterxml.jackson.databind.{ Module, ObjectMapper }
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-
 import java.nio.charset.Charset
 import java.nio.ByteBuffer
-
 import scala.util.parsing.combinator._
 import scala.annotation.tailrec
-
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConverters._
+import com.twitter.finagle.service.TimeoutFilter._
+import com.twitter.finagle.service.TimeoutFilter
+import com.twitter.util.Duration
+import com.twitter.finagle.GlobalRequestTimeoutException
+import org.jboss.netty.util.Timer
+import com.twitter.finagle.util.DefaultTimer
+import java.util.concurrent.TimeUnit
+import com.twitter.finagle.IndividualRequestTimeoutException
 
 
 
@@ -50,6 +52,11 @@ object Server {
     def apply(req: HttpRequest): Future[HttpResponse] = {
       val profileStart = System.nanoTime.toDouble
 
+      val timeout = req.getHeader("request-timeout") match {
+        case null => 500
+        case timeout => timeout.toInt
+      }
+      
       // Map each request to a Future[HttpResponse]
       val batchedResponse: Seq[Future[HttpResponse]] = getRequests(req) map { req => 
         
@@ -58,7 +65,11 @@ object Server {
           case _ => ":" + _
         }
         
-    	val client: Service[HttpRequest, HttpResponse] = Http.newService(req.url.getHost + port)
+    	val clientService: Service[HttpRequest, HttpResponse] = Http.newService(req.url.getHost + port)
+    	
+    	val timeoutFilter = new HttpTimeoutFilter(Duration(timeout, TimeUnit.SECONDS))
+    	val client = timeoutFilter andThen clientService
+    	
     	
     	val httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), req.url.toURI.toString)
     	
@@ -114,6 +125,11 @@ object Server {
     val server = Http.serve(":8081", service)
     Await.ready(server)
   }
+}
+
+class HttpTimeoutFilter(timeout: Duration)
+  extends TimeoutFilter[HttpRequest, HttpResponse](timeout,
+    new IndividualRequestTimeoutException(timeout), DefaultTimer.twitter) {
 }
 
 case class ContentType(contentType: String, param: (String, String))
