@@ -57,8 +57,7 @@ object Server {
         case timeout => timeout.toInt
       }
       
-      // Map each request to a Future[HttpResponse]
-      val batchedResponse: Seq[Future[HttpResponse]] = getRequests(req) map { req => 
+      val batchService = new BatchService({ req: Request => 
         
         val port = req.url.getPort match {
           case n if n < 1 => ":" + 80
@@ -78,12 +77,11 @@ object Server {
     	}
     	
     	client(httpRequest)
-      }
+      })
+      
+      val batchedResponse = batchService(getRequests(req))
 
-      // Collect Seq[Future[HttpResonse]] into a Future[Seq[HttpResponse]]
-      val allResponses: Future[Seq[HttpResponse]] = Future.collect(batchedResponse)
-
-      val result = allResponses onSuccess {
+      val result = batchedResponse onSuccess {
           responses: Seq[HttpResponse] => {
             println("Got a seq of responses: " + responses.length)
           }
