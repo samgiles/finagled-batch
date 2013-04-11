@@ -48,7 +48,7 @@ object Server {
    */
   val service = new Service[HttpRequest, HttpResponse] {
     def apply(req: HttpRequest): Future[HttpResponse] = {
-
+      val profileStart = System.nanoTime.toDouble
 
       // Map each request to a Future[HttpResponse]
       val batchedResponse: Seq[Future[HttpResponse]] = getRequests(req) map { req => 
@@ -98,8 +98,10 @@ object Server {
       var actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       actualResponse.setContent(ChannelBuffers.copiedBuffer(json))
       actualResponse.setHeader("Content-Length", json.length)
-      actualResponse.setHeader("X-batcher", "1")
+      actualResponse.setHeader("X-Batch", "1")
+      val profileEnd = System.nanoTime.toDouble
       
+      actualResponse.setHeader("X-Batch-Took", ((profileEnd - profileStart) / 1000000000).toString + "s")
       // Set the Futures value.
       Future.value(actualResponse)
     }
