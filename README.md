@@ -2,6 +2,8 @@
 
 Concept:  You can batch requests to a single endpoint and asynchrously reduce these to a single response.
 
+Thinking aloud:  This seems to be heading very much into the direction of map <-> reduce
+
 ## Get Started
 
 ```BASH
