@@ -61,8 +61,11 @@ object Server {
     	val client: Service[HttpRequest, HttpResponse] = Http.newService(req.url.getHost + port)
     	
     	val httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), req.url.toURI.toString)
-
-    	// TODO: Do req headers etc.
+    	
+    	req.headers foreach { header => 
+    	  httpRequest.setHeader(header._1, header._2)
+    	}
+    	
     	client(httpRequest)
       }
 
