@@ -7,7 +7,11 @@ Concept:  You can batch requests to a single endpoint and asynchrously reduce th
 ```BASH
 git clone this_repo
 cd finagled-batch
+
+# Build the JAR and writes out run.sh
 ./quick_start.sh
+
+# Runs the API batching endpoint on port 8081
 ./run.sh
 
 
