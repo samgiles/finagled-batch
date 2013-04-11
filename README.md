@@ -5,7 +5,7 @@ Concept:  You can batch requests to a single endpoint and asynchrously reduce th
 ## Get Started
 
 ```BASH
-git clone this_repo
+git clone git://github.com/SamGiles/finagled-batch.git
 cd finagled-batch
 
 # Build the JAR and writes out run.sh
