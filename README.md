@@ -21,4 +21,25 @@ curl -v -H "Accept: application/json" -H "Content-type: application/json" -X POS
 
 ## How it works
 
-TODO
+This is similar concept to Facebook's API batching:  https://developers.facebook.com/docs/reference/api/batch
+
+You can send off multiple requests as a single JSON payload and receive a JSON array of responses to each request.
+
+```JSON
+[
+        {
+                "url": "http:\/\/facebook.com\/index.php",
+                "method": "GET",
+                "headers": {
+                        "Accept-Language": "en_us"
+                },
+                "body": ""
+        },
+        {
+                "url": "https:\/\/api.twitter.com\/1\/help\/test.json",
+                "method": "GET",
+                "headers": {},
+                "body": ""
+        }
+]
+```
