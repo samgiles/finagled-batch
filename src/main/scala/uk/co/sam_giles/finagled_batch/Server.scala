@@ -101,7 +101,7 @@ object Server {
       var actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       actualResponse.setContent(ChannelBuffers.copiedBuffer(json))
       actualResponse.setHeader("Content-Length", json.length)
-      actualResponse.setHeader("X-Batch", "1")
+      actualResponse.setHeader("X-Batch-Count", collectedResponses.length)
       val profileEnd = System.nanoTime.toDouble
       
       actualResponse.setHeader("X-Batch-Took", ((profileEnd - profileStart) / 1000000000).toString + "s")
