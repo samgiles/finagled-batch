@@ -52,13 +52,18 @@ object Server {
 
       // Map each request to a Future[HttpResponse]
       val batchedResponse: Seq[Future[HttpResponse]] = getRequests(req) map { req => 
+        
+        val port = req.url.getPort match {
+          case n if n < 1 => ":" + 80
+          case _ => ":" + _
+        }
+        
+    	val client: Service[HttpRequest, HttpResponse] = Http.newService(req.url.getHost + port)
+    	
+    	val httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), req.url.toURI.toString)
 
-          // Create a new service for connecting to the host in the batch TODO: Handle ports better
-    	  val client: Service[HttpRequest, HttpResponse] = Http.newService(req.url.getHost + ":80")
-    	  val httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), req.url.toURI.toString)
-
-    	  // TODO: Do req headers etc.
-    	  client(httpRequest)
+    	// TODO: Do req headers etc.
+    	client(httpRequest)
       }
 
       // Collect Seq[Future[HttpResonse]] into a Future[Seq[HttpResponse]]
