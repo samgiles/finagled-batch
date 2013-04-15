@@ -31,12 +31,16 @@ case class Response(status: Int, headers: Map[String, String], body: String)
  * Defines an instance of a Server.
  */
 object Server {
-
+  
+  /**
+   * JSON object mapper factory.
+   */
   val jsonObjectMapper =  { 
     val mapper = new ObjectMapper 
     mapper.registerModule(DefaultScalaModule)
   }
   
+  // Get a Seq[Request] from a single JSON Payload in the content body of an HttpRequest.
   def getRequests(req: HttpRequest): Seq[Request] = {
       val content = req.getContent
 
@@ -50,13 +54,20 @@ object Server {
    */
   val service = new Service[HttpRequest, HttpResponse] {
     def apply(req: HttpRequest): Future[HttpResponse] = {
+      
+      // Collect profile information, we're not looking for precise timing information, simply some relative value.
       val profileStart = System.nanoTime.toDouble
 
+      // Get the specified request timeout from the request header 'request-timeout', this defaults to 500s
       val timeout = req.getHeader("request-timeout") match {
         case null => 500
         case timeout => timeout.toInt
       }
       
+      // Create a 'BatchService' This batches a Seq of Requests, to a Future Seq of Responses. 
+      // In this case, we batch a case class Request from the JSON payload, to a corresponding HttpResponse
+      // We pass in a mapping function to perform the map from a Request to the Future[HttpResponse].  
+      // The BatchService handles applying this to 'n' requests. 
       val batchService = new BatchService({ req: Request => 
         
         val port = req.url.getPort match {
@@ -79,6 +90,7 @@ object Server {
     	client(httpRequest)
       })
       
+      // Sends the Seq[Request] to the batchService to execute, receiving a Future[Seq[HttpResponse]]
       val batchedResponse = batchService(getRequests(req))
 
       val result = batchedResponse onSuccess {
