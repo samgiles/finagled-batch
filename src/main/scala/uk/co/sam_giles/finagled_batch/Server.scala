@@ -107,7 +107,7 @@ object Server {
             }
       
       val json = jsonObjectMapper.writeValueAsBytes(collectedResponses)
-      var actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+      val actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
       actualResponse.setContent(ChannelBuffers.copiedBuffer(json))
       actualResponse.setHeader("Content-Length", json.length)
       actualResponse.setHeader("X-Batch-Count", collectedResponses.length)
