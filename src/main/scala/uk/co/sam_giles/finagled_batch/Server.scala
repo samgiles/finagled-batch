@@ -1,7 +1,8 @@
 package uk.co.sam_giles.finagled_batch;
 
 import com.twitter.finagle.{Http, Service}
-import com.twitter.util.{Await, Future}
+import java.util.concurrent.Executors
+import com.twitter.util.{Await, Future, FuturePool}
 import java.net.{InetSocketAddress, URL}
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.buffer.{ChannelBufferInputStream, ChannelBufferOutputStream, ChannelBuffer, ChannelBuffers}
@@ -53,6 +54,9 @@ object Server {
    * Create an HttpReq HttpResp service.  This is a equivalent to (HttpRequest => Future[HttpResponse])
    */
   val service = new Service[HttpRequest, HttpResponse] {
+    
+    val responseWaitFuturePool = FuturePool(Executors.newFixedThreadPool(4))
+    
     def apply(req: HttpRequest): Future[HttpResponse] = {
       
       // Collect profile information, we're not looking for precise timing information, simply some relative value.
@@ -93,41 +97,46 @@ object Server {
       // Sends the Seq[Request] to the batchService to execute, receiving a Future[Seq[HttpResponse]]
       val batchedResponse = batchService(getRequests(req))
 
-      val result = batchedResponse onSuccess {
+      val result = responseWaitFuturePool(batchedResponse onSuccess {
           responses: Seq[HttpResponse] => {
             println("Got a seq of responses: " + responses.length)
           }
-      } apply // Blocks until all complete. TODO: Should probably have a timeout option
+      } apply)
       
-      // Map a Seq[HttpResponse] from requests to a Seq[Response] for better JSON serialisation.
-      val collectedResponses = result map { resp =>
 
-        	  // Get the headers.
-              val headers = resp.getHeaderNames.asScala flatMap { name => 
+      result flatMap { resp =>
+        
+        val requests = resp.foldLeft[Seq[Response]](Seq[Response]()) { (respond, response) => 
+            // Get the headers.
+          val headers = response.getHeaderNames.asScala flatMap { name => 
                 
-                println("Mapping: " + name)
-                scala.collection.mutable.Seq(name -> resp.getHeader(name))
-              }
+            println("Mapping: " + name)
+            scala.collection.mutable.Seq(name -> response.getHeader(name))
+          }
 
-              // Get the charset if possible using the Content-Type parser.  This is a massive hack but Parsers are cool  Check HTTP spec for default handling
-              val charset = resp.containsHeader("Content-Type") match {
-                case x if x => ContentTypeHeaderParser.parse(resp.getHeader("Content-Type")).param._2
-                case _ => "UTF-8"
-              }
+          // Get the charset if possible using the Content-Type parser.  This is a massive hack but Parsers are cool  Check HTTP spec for handling default           
+          val charset = response.containsHeader("Content-Type") match {
+            case x if x => ContentTypeHeaderParser.parse(response.getHeader("Content-Type")).param._2
+            case _ => "UTF-8"
+          }
 
-              new Response(resp.getStatus.getCode, headers.toMap, resp.getContent.toString(Charset.forName(charset)))
-            }
+          val encodedResponse = new Response(response.getStatus.getCode, headers.toMap, response.getContent.toString(Charset.forName(charset)))
+
+          respond ++ Seq(encodedResponse)
+        }
+
+        val actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        val json = jsonObjectMapper.writeValueAsBytes(requests)
+       
+      	actualResponse.setContent(ChannelBuffers.copiedBuffer(json))
+      	actualResponse.setHeader("Content-Length", json.length)
+      	actualResponse.setHeader("X-Batch-Count", requests.length)
+      	val profileEnd = System.nanoTime.toDouble
       
-      val json = jsonObjectMapper.writeValueAsBytes(collectedResponses)
-      val actualResponse: HttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
-      actualResponse.setContent(ChannelBuffers.copiedBuffer(json))
-      actualResponse.setHeader("Content-Length", json.length)
-      actualResponse.setHeader("X-Batch-Count", collectedResponses.length)
-      val profileEnd = System.nanoTime.toDouble
-      
-      actualResponse.setHeader("X-Batch-Took", ((profileEnd - profileStart) / 1000000000).toString + "s")
-      // Set the Futures value.
-      Future.value(actualResponse)
+      	actualResponse.setHeader("X-Batch-Took", ((profileEnd - profileStart) / 1000000000).toString + "s")
+      	// Set the Futures value.
+      	Future.value(actualResponse)
+      }
     }
   }
 
